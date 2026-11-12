@@ -8,6 +8,7 @@ import UniformTypeIdentifiers
 struct StudioView: View {
     @StateObject private var audio = StudioAudio()
     @State private var vocal = 0.8
+    @State private var trim = 0.0
     @State private var beat = 0.35
     @State private var master = 0.7
     @State private var importing = false
@@ -25,6 +26,7 @@ struct StudioView: View {
                         Task { do { try await audio.prepare(); audio.monitor(!audio.monitoring); audio.setVocal(Float(vocal)) } catch { self.error = error.localizedDescription } }
                     }.buttonStyle(.borderedProminent)
                     Text("VOCAL CUE"); Slider(value: $vocal).onChange(of: vocal) { _, v in audio.setVocal(Float(v)) }
+                    Text("INPUT MONITOR TRIM +\(trim, specifier: "%.0f") dB"); Slider(value: $trim, in: 0...18).onChange(of: trim) { _, v in audio.setTrim(Float(v)) }
                     Text("BEAT CUE"); Slider(value: $beat).onChange(of: beat) { _, v in audio.setBeat(Float(v)) }
                     Text("MASTER"); Slider(value: $master).onChange(of: master) { _, v in audio.setMaster(Float(v)) }
                     Button("IMPORT BEAT") { importing = true }.disabled(audio.recording)

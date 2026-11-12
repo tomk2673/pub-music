@@ -3,10 +3,11 @@ from pathlib import Path
 from tempfile import TemporaryDirectory
 from threading import Lock
 import zipfile
+import os
+import hmac
 from flask import Flask, request, jsonify, send_file
 from io import BytesIO
-from analyze import analyze
-from separate import separate
+
 
 app = Flask(__name__, static_folder=None)
 app.config["MAX_CONTENT_LENGTH"] = 100 * 1024 * 1024
@@ -16,10 +17,32 @@ EXT = {".wav", ".mp3", ".m4a", ".flac", ".ogg", ".aac", ".webm"}
 
 @app.before_request
 def local_only():
+    if os.environ.get("HRAI_CLOUD") == "1":
+        origin = os.environ.get("HRAI_ORIGIN", "")
+        token = os.environ.get("HRAI_ENGINE_TOKEN", "")
+        if not origin.startswith("https://") or not token:
+            return jsonify(error="Engine configuration missing"), 503
+        if request.headers.get("Origin") != origin:
+            return jsonify(error="Origin rejected"), 403
+        if request.method == "OPTIONS":
+            return "", 204
+        if not hmac.compare_digest(request.headers.get("Authorization", ""), "Bearer " + token):
+            return jsonify(error="Unauthorized"), 401
+        return
     if request.host.split(":")[0] not in {"localhost", "127.0.0.1"}:
         return jsonify(error="Local host required"), 403
     if request.method == "POST" and request.headers.get("Origin") != request.host_url.rstrip("/"):
         return jsonify(error="Same-origin request required"), 403
+
+@app.after_request
+def cors(response):
+    origin = os.environ.get("HRAI_ORIGIN", "")
+    if os.environ.get("HRAI_CLOUD") == "1" and origin and request.headers.get("Origin") == origin:
+        response.headers["Access-Control-Allow-Origin"] = origin
+        response.headers["Access-Control-Allow-Headers"] = "Authorization, Content-Type"
+        response.headers["Access-Control-Allow-Methods"] = "GET, POST, OPTIONS"
+        response.headers["Vary"] = "Origin"
+    return response
 
 @app.get("/studio")
 @app.get("/studio/")
@@ -28,7 +51,7 @@ def studio():
 
 @app.get("/api/health")
 def health():
-    return jsonify(status="ok", engine="local-python")
+    return jsonify(status="ok", engine="python", mode="cloud" if os.environ.get("HRAI_CLOUD") == "1" else "local")
 
 @app.post("/api/<operation>")
 def process(operation):
@@ -44,7 +67,9 @@ def process(operation):
             source = Path(tmp) / ("input" + Path(audio.filename).suffix.lower())
             audio.save(source)
             if operation == "analyze":
+                from analyze import analyze
                 return jsonify(analyze(str(source)))
+            from separate import separate
             folder = separate(source, Path(tmp) / "output")
             result = BytesIO()
             with zipfile.ZipFile(result, "w", zipfile.ZIP_STORED) as archive:
@@ -59,4 +84,4 @@ def process(operation):
         LOCK.release()
 
 if __name__ == "__main__":
-    app.run(host="127.0.0.1", port=8765, debug=False)
+    app.run(host="0.0.0.0" if os.environ.get("HRAI_CLOUD") == "1" else "127.0.0.1", port=int(os.environ.get("PORT", "8765")), debug=False)

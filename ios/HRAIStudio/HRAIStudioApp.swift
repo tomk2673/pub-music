@@ -41,7 +41,14 @@ struct StudioView: View {
                             } catch { self.error = error.localizedDescription }
                         }
                     }.buttonStyle(.borderedProminent).tint(.red)
-                    if let take, !audio.recording { ShareLink(item: take) { Text("EXPORT TAKE") } }
+                    if let take, !audio.recording {
+                        HStack {
+                            Button("PLAY MIX") { do { try audio.review() } catch { self.error = error.localizedDescription } }
+                            Button("SOLO VOCAL") { do { try audio.review(vocalOnly: true) } catch { self.error = error.localizedDescription } }
+                            Button("STOP") { audio.stopPlayback() }
+                        }.buttonStyle(.bordered)
+                        ShareLink(item: take) { Text("EXPORT TAKE") }
+                    }
                     if !error.isEmpty { Text(error).foregroundStyle(.red) }
                 }.padding(24)
             }.preferredColorScheme(.dark)

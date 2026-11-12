@@ -18,6 +18,13 @@ jobs:
       - name: Build iOS simulator
         working-directory: ios
         run: xcodebuild -project HRAIStudio.xcodeproj -scheme HRAIStudio -configuration Debug -sdk iphonesimulator -destination 'generic/platform=iOS Simulator' -derivedDataPath build CODE_SIGNING_ALLOWED=NO build
+      - name: Build physical iPhone (unsigned)
+        working-directory: ios
+        run: xcodebuild -project HRAIStudio.xcodeproj -scheme HRAIStudio -configuration Release -sdk iphoneos -destination 'generic/platform=iOS' -derivedDataPath device-build CODE_SIGNING_ALLOWED=NO build
+      - uses: actions/upload-artifact@v4
+        with:
+          name: HRAIStudio-iPhone-unsigned
+          path: ios/device-build/Build/Products/Release-iphoneos/HRAIStudio.app
       - uses: actions/upload-artifact@v4
         with:
           name: HRAIStudio-simulator
